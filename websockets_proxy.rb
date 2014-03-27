@@ -177,13 +177,17 @@ module WebSockets
       end
 
       def check_fields
-        check_field_present_with_value("Upgrade",                "WebSocket")
+        check_field_present_with_value("Upgrade",                "websocket")
         check_field_present_with_value("Connection",             "Upgrade")
-        check_field_present_with_value("Sec-WebSocket-Protocol", "websockets-proxy")
         check_field_present("Host")
+        check_field_present("Sec-WebSocket-Key")
         check_field_present("Origin")
-        check_field_present("Sec-WebSocket-Key1")
-        check_field_present("Sec-WebSocket-Key2")
+        # Key1 and Key2 were deprecated apparently.
+        #check_field_present("Sec-WebSocket-Key1")
+        #check_field_present("Sec-WebSocket-Key2")
+        #
+        # Don't need to check a sub-protocol
+        #check_field_present_with_value("Sec-WebSocket-Protocol", "websockets-proxy")
       end
 
       def receive_client_handshake
@@ -205,8 +209,14 @@ module WebSockets
           @fields[$1.downcase] = $2
         end
 
+        # The answer is yes.
+        #WebSockets.debug "Websocket debug: do we get here"
+
         # Step 6
-        @body = read_bytes(8)
+        #@body = read_bytes(8)
+
+        # The answer is no.
+        WebSockets.debug "Websocket debug: how about here"
 
         check_fields
       end
@@ -219,52 +229,63 @@ module WebSockets
         # Setp 2
         host   = @fields["host"]
         origin = @fields["origin"]
-        key_1  = @fields["sec-websocket-key1"]
-        key_2  = @fields["sec-websocket-key2"]
-        key_3  = @body
+        key    = @fields["sec-websocket-key"]
+        #key_1  = @fields["sec-websocket-key1"]
+        #key_2  = @fields["sec-websocket-key2"]
+        #key_3  = @body
 
         # Step 3
         location = "ws://#{host}#{resource_name}"
 
         # Step 4
-        key_number_1 = key_1.tr("^0-9", "").to_i
-        key_number_2 = key_2.tr("^0-9", "").to_i
+        #key_number_1 = key_1.tr("^0-9", "").to_i
+        #key_number_2 = key_2.tr("^0-9", "").to_i
+        #key_number = key.tr("^0-9", "").to_i
 
         # Step 5
-        spaces_1 = key_1.count(" ")
-        if spaces_1 == 0
-          abort_connection "No spaces in the value of field \"Sec-Websocket-Key1\": #{key_1.inspect}."
-        end
-        spaces_2 = key_2.count(" ")
-        if spaces_2 == 0
-          abort_connection "No spaces in the value of field \"Sec-Websocket-Key1\": #{key_2.inspect}."
-        end
+        #spaces_1 = key_1.count(" ")
+        #if spaces_1 == 0
+        #  abort_connection "No spaces in the value of field \"Sec-Websocket-Key1\": #{key_1.inspect}."
+        #end
+        #spaces_2 = key_2.count(" ")
+        #if spaces_2 == 0
+        #  abort_connection "No spaces in the value of field \"Sec-Websocket-Key1\": #{key_2.inspect}."
+        #end
+        #spaces = key.count(" ")
+        #if spaces == 0
+        #  abort_connection "No spaces in the value of field \"Sec-Websocket-Key\": #{key.inspect}."
+        #end
 
         # Step 6
-        if key_number_1 % spaces_1 != 0
-          abort_connection "Invalid value of field \"Sec-Websocket-Key1\": #{key_1.inspect}."
-        end
-        if key_number_2 % spaces_2 != 0
-          abort_connection "Invalid value of field \"Sec-Websocket-Key1\": #{key_2.inspect}."
-        end
+        #if key_number_1 % spaces_1 != 0
+        #  abort_connection "Invalid value of field \"Sec-Websocket-Key1\": #{key_1.inspect}."
+        #end
+        #if key_number_2 % spaces_2 != 0
+        #  abort_connection "Invalid value of field \"Sec-Websocket-Key1\": #{key_2.inspect}."
+        #end
 
         # Step 7
-        part_1 = key_number_1 / spaces_1
-        part_2 = key_number_2 / spaces_2
+        #part_1 = key_number_1 / spaces_1
+        #part_2 = key_number_2 / spaces_2
 
         # Step 8
-        challenge = [part_1, part_2].pack("NN") + key_3
+        #challenge = [part_1, part_2].pack("NN") + key_3
 
         # Step 9
-        response = Digest::MD5.digest(challenge)
+        #response = Digest::MD5.digest(challenge)
+
+        # The response to the key should be enc_base64(sha1(key+magic_string))
+        # TODO. Pick up from here tomorrow.
 
         # Steps 10-13
-        write_line "HTTP/1.1 101 WebSocket Protocol Handshake"
-        write_line "Upgrade: WebSocket"
+        #write_line "HTTP/1.1 101 WebSocket Protocol Handshake"
+        write_line "HTTP/1.1 101 Switching Protocols"
+        write_line "Upgrade: websocket"
         write_line "Connection: Upgrade"
-        write_line "Sec-WebSocket-Location: #{location}"
-        write_line "Sec-WebSocket-Origin: #{origin}"
-        write_line "Sec-WebSocket-Protocol: #{@protocol}"
+        write_line "Sec-WebSocket-Accept: TODO" # TODO.
+        #write_line "Sec-WebSocket-Location: #{location}"
+        #write_line "Sec-WebSocket-Origin: #{origin}"
+        #write_line "Sec-WebSocket-Protocol: #{@protocol}"
         write_line ""
         write_bytes response
       end
